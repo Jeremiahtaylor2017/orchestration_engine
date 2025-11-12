@@ -39,7 +39,7 @@ type ExecutionConfig struct {
 	DialTimeoutSeconds int `yaml:"dial_timeout_seconds"`
 	//JobTimeoutSeconds bounds the entire remote execution (command + streaming output)
 	JobTimeoutSeconds int    `yaml:"job_timeout_seconds"`
-	PrivateKeyPath    string `yaml:"private_key_Path"`
+	PrivateKeyPath    string `yaml:"private_key_path"`
 	// Password is optional for legacy hosts with no key-based auth
 	Password string `yaml:"password"`
 	//HostKeyFingerprints pins trusted server keys (map keyed by host or host:port string)
