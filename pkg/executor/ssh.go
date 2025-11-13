@@ -17,11 +17,10 @@ import (
 
 type SSHCredentials struct {
 	// host:port (default 22 when omitted)
-	Address       string
-	Username      string
-	PrivateKeyPEM []byte
-	Password      string
-	Fingerprint   string
+	Address     string
+	Username    string
+	Password    string
+	Fingerprint string
 }
 
 type SSHExecutor struct {
@@ -100,6 +99,9 @@ func (e *SSHExecutor) newClient(ctx context.Context, creds SSHCredentials) (*ssh
 	if creds.Address == "" || creds.Username == "" {
 		return nil, errors.New("missing SSH address or username")
 	}
+	if creds.Password == "" {
+		return nil, errors.New("missing password")
+	}
 
 	config := &ssh.ClientConfig{
 		User:            creds.Username,
@@ -107,17 +109,7 @@ func (e *SSHExecutor) newClient(ctx context.Context, creds SSHCredentials) (*ssh
 		Timeout:         e.DialTimeout,
 	}
 
-	if len(creds.PrivateKeyPEM) > 0 {
-		signer, err := ssh.ParsePrivateKey(creds.PrivateKeyPEM)
-		if err != nil {
-			return nil, fmt.Errorf("parse private key: %w", err)
-		}
-		config.Auth = append(config.Auth, ssh.PublicKeys(signer))
-	}
-
-	if creds.Password != "" {
-		config.Auth = append(config.Auth, ssh.Password(creds.Password))
-	}
+	config.Auth = []ssh.AuthMethod{ssh.Password(creds.Password)}
 
 	dialer := &net.Dialer{Timeout: e.DialTimeout}
 	conn, err := dialer.DialContext(ctx, "tcp", creds.Address)
