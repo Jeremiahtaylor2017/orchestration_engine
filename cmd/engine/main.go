@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"strings"
@@ -25,11 +26,11 @@ type Config struct {
 	Execution ExecutionConfig `yaml:"execution"`
 }
 
-// TransportConfig controls how the engine watches for work
+// TransportConfig controls how the engine talks to the controller API
 type TransportConfig struct {
-	// InboxDir is the file share
-	InboxDir            string `yaml:"inbox_dir"`
+	ControllerURL       string `yaml:"controller_url"`
 	PollIntervalSeconds int    `yaml:"poll_interval_seconds"`
+	HTTPTimeoutSeconds  int    `yaml:"http_timeout_seconds"`
 }
 
 // ExecutionConfig owns everything related to remote execution policy
@@ -38,10 +39,7 @@ type ExecutionConfig struct {
 	// DialTimeoutSeconds bounds TCP handshakes so hung hosts do not stall engine
 	DialTimeoutSeconds int `yaml:"dial_timeout_seconds"`
 	//JobTimeoutSeconds bounds the entire remote execution (command + streaming output)
-	JobTimeoutSeconds int    `yaml:"job_timeout_seconds"`
-	PrivateKeyPath    string `yaml:"private_key_path"`
-	// Password is optional for legacy hosts with no key-based auth
-	Password string `yaml:"password"`
+	JobTimeoutSeconds int `yaml:"job_timeout_seconds"`
 	//HostKeyFingerprints pins trusted server keys (map keyed by host or host:port string)
 	HostKeyFingerprints map[string]string `yaml:"host_key_fingerprints"`
 }
@@ -56,13 +54,13 @@ func main() {
 		log.Fatalf("load config: %v", err)
 	}
 
-	privateKey, err := readPrivateKey(cfg.Execution.PrivateKeyPath)
-	if err != nil {
-		log.Fatalf("load private key: %v", err)
+	httpClient := &http.Client{
+		Timeout: timeoutOrDefault(cfg.Transport.HTTPTimeoutSeconds, 30*time.Second),
 	}
 
-	transport := &transport.FilesystemTransport{
-		InboxDir:     cfg.Transport.InboxDir,
+	tr := &transport.HTTPTransport{
+		BaseURL:      strings.TrimRight(cfg.Transport.ControllerURL, "/"),
+		Client:       httpClient,
 		PollInterval: pollInterval(cfg.Transport.PollIntervalSeconds),
 	}
 
@@ -84,10 +82,10 @@ func main() {
 		cancel()
 	}()
 
-	log.Printf("engine started; watching %s for *.job.json instructions", cfg.Transport.InboxDir)
+	log.Printf("engine start: polling controller %s for jobs", cfg.Transport.ControllerURL)
 
 	for {
-		job, jobPath, err := transport.NextJob(stop)
+		job, receipt, err := tr.NextJob(stop)
 		if err != nil {
 			if stopped(stop) {
 				log.Println("shutdown requested; exiting engine loop")
@@ -98,14 +96,14 @@ func main() {
 		}
 
 		jobCtx, jobCancel := context.WithTimeout(ctx, timeoutOrDefault(cfg.Execution.JobTimeoutSeconds, 2*time.Minute))
-		result, execErr := exec.Execute(jobCtx, *job, buildCredentials(*job, cfg.Execution, privateKey))
+		result, execErr := exec.Execute(jobCtx, *job, buildCredentials(*job, cfg.Execution))
 		jobCancel()
 		if execErr != nil {
 			// Execute already encoded errors into the result struct; we still log
 			log.Printf("job %s execution error: %v", job.ID, execErr)
 		}
 
-		if err := transport.WriteResult(jobPath, result); err != nil {
+		if err := tr.WriteResult(receipt, result); err != nil {
 			log.Printf("job %s result write failed: %v", job.ID, err)
 		} else {
 			log.Printf("job %s finished with status=%s exit=%d", job.ID, result.Status, result.ExitCode)
@@ -128,25 +126,11 @@ func loadConfig(path string) (Config, error) {
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		return Config{}, fmt.Errorf("parse config: %w", err)
 	}
-	if cfg.Transport.InboxDir == "" {
-		return Config{}, errors.New("transport.inbox_dir must be set")
+	if cfg.Transport.ControllerURL == "" {
+		return Config{}, errors.New("transport.controller_url must be set")
 	}
 
 	return cfg, nil
-}
-
-// readPrivateKey laods the PEM once so we do not hit disk for every job.
-func readPrivateKey(path string) ([]byte, error) {
-	if strings.TrimSpace(path) == "" {
-		return nil, errors.New("execution.private_key_path must be set for SSH key auth")
-	}
-
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("read private key: %w", err)
-	}
-
-	return data, nil
 }
 
 // pollInterval converts seconds to time.Duration with a sane default.
@@ -194,8 +178,8 @@ func stopped(stop <-chan struct{}) bool {
 	}
 }
 
-// buildCredentials merges job-provided host/user info with engine-held secrets
-func buildCredentials(job jobs.JobDefinition, execCfg ExecutionConfig, privateKey []byte) executor.SSHCredentials {
+// buildCredentials trusts the per-job credential bundle provided from the CLI
+func buildCredentials(job jobs.JobDefinition, execCfg ExecutionConfig) executor.SSHCredentials {
 	address := fmt.Sprintf("%s:%d", job.TargetHost, effectivePort(job.TargetPort))
 	fpKey := job.TargetHost
 	if job.TargetPort != 0 {
@@ -203,11 +187,10 @@ func buildCredentials(job jobs.JobDefinition, execCfg ExecutionConfig, privateKe
 	}
 
 	return executor.SSHCredentials{
-		Address:       address,
-		Username:      job.TargetUser,
-		PrivateKeyPEM: privateKey,
-		Password:      execCfg.Password,
-		Fingerprint:   execCfg.HostKeyFingerprints[fpKey],
+		Address:     address,
+		Username:    job.Credentials.Username,
+		Password:    job.Credentials.Password,
+		Fingerprint: execCfg.HostKeyFingerprints[fpKey],
 	}
 }
 
