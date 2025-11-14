@@ -1,0 +1,12 @@
+transport:
+  controller_url: http://localhost:8080
+  poll_interval_seconds: 5
+  http_timeout_seconds: 30
+execution:
+  allowed_commands:
+    - /usr/bin/bash
+    - /usr/bin/whoami
+  dial_timeout_seconds: 10
+  job_timeout_seconds: 120
+  host_key_fingerprints:
+    localhost: ""
