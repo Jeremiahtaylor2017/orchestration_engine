@@ -1,9 +1,9 @@
 # Orchestration Engine
 
 ## Build instructions
-go build -o bin/controller ./cmd/controller
-go build -o bin/engine ./cmd/engine
-go build -o bin/orchcli ./cmd/orchcli
+- go build -o bin/controller ./cmd/controller
+- go build -o bin/engine ./cmd/engine
+- go build -o bin/orchcli ./cmd/orchcli
 
 ## Run Engine
 ./bin/engine -config path/to/engine.yaml
