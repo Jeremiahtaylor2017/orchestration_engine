@@ -25,7 +25,7 @@ type JobDefinition struct {
 	Command    string   `yaml:"command" json:"command"`
 	Arguments  []string `yaml:"arguments" json:"arguments"`
 	// Controls whether the engine requests a pseudo-terminal for interactive commands
-	AllowTTY    bool              `yamlL:"allow_tty" json:"allow_tty"`
+	AllowTTY    bool              `yaml:"allow_tty" json:"allow_tty"`
 	Checksum    string            `yaml:"checksum" json:"checksum"`
 	Metadata    map[string]string `yaml:"metadata" json:"metadata"`
 	Credentials CredentialBundle  `yaml:"credentials" json:"credentials"`
