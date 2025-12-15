@@ -30,19 +30,24 @@ type SSHExecutor struct {
 
 // Execute runs the job remotely and return stdout/sterr/exit code
 func (e *SSHExecutor) Execute(ctx context.Context, job jobs.JobDefinition, creds SSHCredentials) (jobs.Result, error) {
+	started := time.Now().UTC()
 	if err := e.validateJob(job); err != nil {
-		return jobs.Result{}, err
+		// return jobs.Result{}, err
+		return e.buildResult(job, started, "", "", err), err
 	}
 
 	client, err := e.newClient(ctx, creds)
 	if err != nil {
-		return jobs.Result{}, err
+		// return jobs.Result{}, err
+		return e.buildResult(job, started, "", "", err), err
 	}
 	defer client.Close()
 
 	session, err := client.NewSession()
 	if err != nil {
-		return jobs.Result{}, fmt.Errorf("start session: %w", err)
+		// return jobs.Result{}, fmt.Errorf("start session: %w", err)
+		err = fmt.Errorf("start session: %w", err)
+		return e.buildResult(job, started, "", "", err), err
 	}
 	defer session.Close()
 
@@ -58,7 +63,7 @@ func (e *SSHExecutor) Execute(ctx context.Context, job jobs.JobDefinition, creds
 		}
 	}
 
-	start := time.Now().UTC()
+	// start := time.Now().UTC()
 	runCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -69,9 +74,12 @@ func (e *SSHExecutor) Execute(ctx context.Context, job jobs.JobDefinition, creds
 
 	select {
 	case <-runCtx.Done():
-		return jobs.Result{}, runCtx.Err()
+		// return jobs.Result{}, runCtx.Err()
+		err := runCtx.Err()
+		return e.buildResult(job, started, stdoutBuf.String(), stderrBuf.String(), err), err
 	case err := <-done:
-		return e.buildResult(job, start, stdoutBuf.String(), stderrBuf.String(), err), nil
+		// return e.buildResult(job, start, stdoutBuf.String(), stderrBuf.String(), err), nil
+		return e.buildResult(job, started, stdoutBuf.String(), stderrBuf.String(), err), err
 	}
 }
 

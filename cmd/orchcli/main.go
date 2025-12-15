@@ -12,6 +12,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -47,7 +48,11 @@ func main() {
 	}
 
 	client := &http.Client{Timeout: 30 * time.Second}
-	baseURL := strings.TrimRight(*controllerURL, "/")
+	// baseURL := strings.TrimRight(*controllerURL, "/")
+	baseURL, err := normalizeControllerURL(*controllerURL)
+	if err != nil {
+		log.Fatalf("controller URL invalid: %v", err)
+	}
 
 	if err := submitJob(client, baseURL, job); err != nil {
 		log.Fatalf("submit job: %v", err)
@@ -132,6 +137,31 @@ func readSecret(prompt string) []byte {
 	}
 
 	return bytes.TrimSpace(secret)
+}
+
+// normalizeControllerURL ensures the controller flag can be provided as host:port
+// or a full URL with scheme. It defaults to http when the scheme is omitted and
+// trims any trailing slash so subsequent path joins are predictable
+func normalizeControllerURL(raw string) (string, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return "", fmt.Errorf("empty controller URL")
+	}
+
+	if !strings.Contains(trimmed, "://") {
+		trimmed = "http://" + trimmed
+	}
+
+	u, err := url.Parse(trimmed)
+	if err != nil {
+		return "", err
+	}
+
+	if u.Scheme == "" || u.Host == "" {
+		return "", fmt.Errorf("controller URL must include host (got %q)", raw)
+	}
+
+	return strings.TrimRight(u.String(), "/"), nil
 }
 
 // submitJob pushes the job to the controller over HTTPS
