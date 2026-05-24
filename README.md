@@ -1,4 +1,4 @@
-# orchestration_engine
+# Orchestration Engine
 
 > Distributed task execution for restricted and PCI-segmented networks — built in Go.
 
