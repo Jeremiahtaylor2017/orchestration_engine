@@ -72,7 +72,7 @@ sequenceDiagram
 │                      │  POST /v1/jobs               │   │
 │                      │  GET  /v1/jobs/{id}          │   │
 │                      │  GET  /v1/queue/next   ◀─┐   │   │
-│                      │  POST /v1/jobs/{id}/results  │   │  
+│                      │  POST /v1/jobs/{id}/results  │   │
 │                      └──────────────────────────────┘   │
 └─────────────────────────────────────────────────────────┘
                                                   │ outbound poll
