@@ -67,11 +67,11 @@ sequenceDiagram
 │                    UNRESTRICTED ZONE                    │
 │                                                         │
 │   ┌──────────┐       ┌──────────────────────────────┐   │
-│   │ orchcli  │──────▶│         controller           │   │
+│   │ orchcli  │──────▸│         controller           │   │
 │   └──────────┘       │                              │   │
 │                      │  POST /v1/jobs               │   │
 │                      │  GET  /v1/jobs/{id}          │   │
-│                      │  GET  /v1/queue/next   ◀─┐   │   │
+│                      │  GET  /v1/queue/next   ◂─┐   │   │
 │                      │  POST /v1/jobs/{id}/results  │   │
 │                      └──────────────────────────────┘   │
 └─────────────────────────────────────────────────────────┘
